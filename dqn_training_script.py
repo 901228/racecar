@@ -20,13 +20,15 @@ def main():
     env = gymnasium.make(
         'SingleAgentAustria-v0',
         render_mode=render_mode,
-        scenario='scenarios/circle_cw.yml',  # change the scenario here (change map)
+        # scenario='scenarios/circle_cw.yml',  # change the scenario here (change map)
+        scenario='scenarios/austria.yml',
         # scenario='scenarios/validation.yml',  # change the scenario here (change map), ONLY USE THIS FOR VALIDATION
         # scenario='scenarios/validation2.yml',   # Use this during the midterm competition, ONLY USE THIS FOR VALIDATION
     )
 
     EPOCHS = 1000
     best_reward = -np.inf
+    best_progress = 0
     agent = get_training_agent(agent_name='DQN')
 
     # ======================================================================
@@ -49,15 +51,23 @@ def main():
 
             # Calculate reward
             reward = 0
-            reward += np.linalg.norm(states['velocity'][:3])
+            reward += np.linalg.norm(states['velocity'][:3])  # speed
             reward += states['progress'] - old_progress
             old_progress = states['progress']
 
-            if states['wall_collision']:
+            reward += states['checkpoint'] * 2
+
+            # print(f"{next_obs['lidar']}")
+            reward += next_obs['lidar'][len(next_obs['lidar']) // 2] / 10
+
+            if states['wrong_way'] or states['wall_collision']:
                 reward = -10
                 done = True
 
             total_reward += reward
+
+            if states['time'] >= 120:
+                done = True
 
             agent.store_transition(obs, action, reward, next_obs, done)
             agent.learn()
@@ -85,7 +95,14 @@ def main():
             best_reward = total_reward
             agent.save_model()
 
-        print(f"Epoch: {e}, Total reward: {total_reward:.3f}, Best reward: {best_reward:.3f}")
+        if old_progress > best_progress:
+            best_progress = old_progress
+            agent.save_model()
+
+        print(
+            f"Epoch: {e}, Total reward: {total_reward:.3f}, Final Progress: {old_progress * 100:.2f}%, Best reward: {best_reward:.3f}, Best Progress: {best_progress * 100:.2f}%"
+        )
+        # print(f"Epoch: {e}, Best Progress: {best_progress * 100:.2f}%")
 
 
 if __name__ == '__main__':

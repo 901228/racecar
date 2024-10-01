@@ -20,8 +20,9 @@ def main():
     env = gymnasium.make(
         'SingleAgentAustria-v0',
         render_mode=render_mode,
-        scenario='scenarios/circle_cw.yml',  # change the scenario here (change map)
-        # scenario='scenarios/validation.yml',  # change the scenario here (change map), ONLY USE THIS FOR VALIDATION
+        # scenario='scenarios/circle_cw.yml',  # change the scenario here (change map)
+        # scenario='scenarios/austria.yml',
+        scenario='scenarios/validation.yml',  # change the scenario here (change map), ONLY USE THIS FOR VALIDATION
         # scenario='scenarios/validation2.yml',   # Use this during the midterm competition, ONLY USE THIS FOR VALIDATION
     )
     done = False

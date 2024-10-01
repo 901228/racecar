@@ -10,19 +10,21 @@ from .replay_buffer import ReplayBuffer
 
 
 class DQNAgent:
-    def __init__(self,
-                 state_dim: int,
-                 lr: float = 1e-4,
-                 gamma: float = 0.99,
-                 epsilon: float = 1.0,
-                 epsilon_decay: float = 0.999,
-                 epsilon_min: float = 0.01,
-                 memory_size: int = 10000,
-                 batch_size: int = 32,
-                 target_update: int = 100,
-                 is_training: bool = True,
-                 model_path: str = "./agent/weight.pth",
-                 device: str = "cuda:0") -> None:
+    def __init__(
+        self,
+        state_dim: int,
+        lr: float = 1e-4,
+        gamma: float = 0.99,
+        epsilon: float = 1.0,
+        epsilon_decay: float = 0.999,
+        epsilon_min: float = 0.01,
+        memory_size: int = 10000,
+        batch_size: int = 32,
+        target_update: int = 100,
+        is_training: bool = True,
+        model_path: str = "./agent/weight.pth",
+        device: str = "cuda:0",
+    ) -> None:
         """
         state_dim (int): dimension of state
         lr (float): learning rate
@@ -66,8 +68,7 @@ class DQNAgent:
         self.update_target_network()
 
         # Load weight
-        if not self.is_training:
-            self.load_model()
+        self.load_model()
 
     @staticmethod
     def generate_action_map() -> list[dict[str, float]]:
@@ -102,7 +103,7 @@ class DQNAgent:
 
         """
 
-        # TODO Make your own observation preprocessing
+        # NOTE: Make your own observation preprocessing
 
         return np.concatenate([obs['pose'], obs['velocity'], obs['acceleration'], obs['lidar']], axis=-1)
 
@@ -118,15 +119,22 @@ class DQNAgent:
             `{'motor': float,"steering": float}`
 
         """
-        # TODO: Select action
-        pass
 
-    def store_transition(self,
-                         obs: dict,
-                         action: dict[str, float],
-                         reward: float | int,
-                         next_obs: dict,
-                         done: bool) -> None:
+        _obs = self.obs_preprocess(obs)
+        _obs = torch.tensor(_obs).float().unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            # If training, use epsilon-greedy
+            if self.is_training and np.random.random() < self.epsilon / 2:
+                return {"motor": 1, "steering": 0}
+            elif self.is_training and np.random.random() < self.epsilon:
+                action_idx = np.random.randint(0, self.action_dim)
+            else:
+                action_idx = self.qnet_eval(_obs).argmax().item()
+
+        return self.action_map[action_idx]
+
+    def store_transition(self, obs: dict, action: dict[str, float], reward: float | int, next_obs: dict, done: bool) -> None:
         """
         Store transition in memory
         Args:
@@ -150,8 +158,7 @@ class DQNAgent:
             return
 
         # Sample batch experiences from memory
-        batch_obs, batch_action, batch_reward, batch_next_obs, batch_done = \
-            self.memory.sample_buffer(self.batch_size)
+        batch_obs, batch_action, batch_reward, batch_next_obs, batch_done = self.memory.sample_buffer(self.batch_size)
 
         batch_obs = torch.tensor(batch_obs, dtype=torch.float32).to(self.device)
         batch_action = torch.tensor(batch_action, dtype=torch.long).to(self.device)
@@ -159,8 +166,18 @@ class DQNAgent:
         batch_done = torch.tensor(batch_done, dtype=torch.float32).to(self.device)
         batch_next_obs = torch.tensor(batch_next_obs, dtype=torch.float32).to(self.device)
 
-        # TODO: DQN Algorithm, formula: Q(s, a) = r + gamma * max_a' Q(s', a')
+        # DQN Algorithm, formula: Q(s, a) = r + gamma * max_a' Q(s', a')
+        # Q-learning algorithm
+        q_eval = self.qnet_eval(batch_obs)  # (B, action_dim)
+        q_eval = q_eval.gather(1, batch_action)  # (B, 1)
 
+        q_next = self.qnet_target(batch_next_obs).detach()  # (B, action_dim)
+        max_q_next = q_next.max(1)[0].view(-1, 1)  # (B, 1)
+
+        q_target = batch_reward + self.gamma * (1 - batch_done) * max_q_next  # (B, 1)
+
+        # Update eval network
+        loss = self.loss_fn(q_eval, q_target)
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -185,9 +202,15 @@ class DQNAgent:
             print(f"Model path {self.model_path} does not exist")
             return
 
+        # XXX: is it work?
+        if not self.is_training:
+            loc = None
+        else:
+            loc = self.device
+
         print(f"Load model from {self.model_path}")
-        self.qnet_eval.load_state_dict(torch.load(self.model_path))
-        self.qnet_target.load_state_dict(torch.load(self.model_path))
+        self.qnet_eval.load_state_dict(torch.load(self.model_path, map_location=loc))
+        self.qnet_target.load_state_dict(torch.load(self.model_path, map_location=loc))
 
     def save_model(self) -> None:
         """Save model"""
