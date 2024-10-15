@@ -64,9 +64,6 @@ def main():
             action, a_logp, value = agent.get_action(obs)
 
             next_obs, _, done, truncated, states = env.step({'motor': np.clip(action[0], -1, 1), 'steering': np.clip(action[1], -1, 1)})
-            if states['opponent_collisions']:
-                print(states['opponent_collisions'])
-                exit(0)
 
             # Calculate reward
             reward = 0
@@ -108,18 +105,20 @@ def main():
             reward += middle_reward(next_obs['lidar'])
 
             if states['wall_collision']:
-                reward -= 0.01
-                wall_counter += 1
+                reward = -10
+                done = True
+            #     reward -= 0.01
+            #     wall_counter += 1
 
-                if wall_counter >= 100:
-                    # reward = -10
-                    # print('wall_collision')
-                    wall_counter = 0
-                    # done = True
-            else:
-                if wall_counter > 0:
-                    reward += 0.05
-                wall_counter = 0
+            #     if wall_counter >= 100:
+            #         # reward = -10
+            #         # print('wall_collision')
+            #         wall_counter = 0
+            #         # done = True
+            # else:
+            #     if wall_counter > 0:
+            #         reward += 0.05
+            #     wall_counter = 0
 
             speed = np.linalg.norm(states['velocity'][:3])
             if reward <= 0:
@@ -147,12 +146,8 @@ def main():
 
             total_reward += reward
 
-            # if total_reward < -100 or states['time'] >= 120:
             if total_reward < -100:
-                if total_reward < -100:
-                    print('reward too low')
-                # elif states['time'] >= 120:
-                #     print('timeout')
+                print('reward too low')
                 done = True
 
             agent.store_trajectory(obs, action, value, a_logp, reward)

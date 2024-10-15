@@ -27,8 +27,8 @@ class PPOAgent:
         sample_n_epoch: int = 4,
         sample_mb_size: int = 64,
         is_training: bool = True,
-        # model_path: str = "./agent/weight.pth",
-        model_path: str = "./agent/weight14.pth",
+        model_path: str = "./agent/weight.pth",
+        # model_path: str = "./agent/best.pth",
         device: str = "cuda:0",
     ) -> None:
         # Initialize hyperparameters
